@@ -19,6 +19,8 @@ WECOM_WEBHOOK_URL = os.getenv("WECOM_WEBHOOK_URL")
 # 3. 频道列表 (建议把 JSON 字符串存入环境变量，或者依然写死在这里)
 CHANNELS = {
     "墨染": "UCJFC7-e0PJ0ucBKhXt2luzg",
+    "视野环球财经":"UCFQsi7WaF5X41tcuOryDk8w",
+    "分析师舒琴谈比特币":"UC45uU-M3pHzHncZ5PvG_7iw"
 }
 
 Hg_HOURS = 24
