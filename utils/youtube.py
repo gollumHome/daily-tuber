@@ -96,9 +96,17 @@ def get_video_content(video_id):
                 'preferredquality': '128',
             }],
             'quiet': True,
-            'no_warnings': True
-        }
+            'no_warnings': True,
 
+            # 1. 伪装成 Android 客户端 (绕过 Bot 检测的关键)
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'ios'],
+                }
+            },
+            # 2. 增加随机等待时间，进一步模拟人类
+            'sleep_interval_requests': 12
+            }
         if config.PROXY_URL:
             ydl_opts['proxy'] = config.PROXY_URL
 
