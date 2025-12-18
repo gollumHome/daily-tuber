@@ -1,0 +1,6 @@
+feedparser
+youtube-transcript-api==0.6.3
+yt-dlp
+google-generativeai
+requests
+python-dotenv
