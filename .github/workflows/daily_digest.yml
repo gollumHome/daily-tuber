@@ -34,6 +34,11 @@ jobs:
       run: |
         pip install -r requirements.txt
 
+    # 5. 生成 Cookies 文件 (注意缩进对齐)
+    - name: Create Cookies File
+      run: |
+          echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
+
     # 5. 运行脚本
     - name: Run Digest Script
       env:
