@@ -1,14 +1,27 @@
 import os
+import sys
+
 from utils import youtube, ai
 from utils.notify import WeChatNotifier
 import time
+
+from utils.youtube import get_latest_videos
+
 
 def main():
     print("=== YouTube 每日抓取任务开始 ===")
 
     notifier = WeChatNotifier()
-    # 1. 获取新视频
-    videos = youtube.get_latest_videos()
+    category = "crypto"
+    if len(sys.argv) > 1:
+        category = sys.argv[1].lower()
+
+    if category not in ["crypto", "stock"]:
+        print("错误: 参数必须是 crypto 或 stock")
+        return
+
+    # 获取对应分类的视频
+    videos = get_latest_videos(category)
 
     if not videos:
         print("[-] 过去 24 小时没有新视频发布。")
@@ -32,6 +45,8 @@ def main():
         # 2.2 AI 总结
         summary = ai.summarize_content(content_data)
 
+        print(summary)
+
         # 2.3 推送
         notifier.send(
             title=video['title'],
@@ -40,7 +55,7 @@ def main():
             author=video['channel']
         )
 
-        # 2.4 清理本地临时文件 (如果是音频下载模式)
+        #2.4 清理本地临时文件 (如果是音频下载模式)
         if content_data['type'] == 'audio' and os.path.exists(content_data['path']):
             os.remove(content_data['path'])
             print("  [-] 临时音频已删除")

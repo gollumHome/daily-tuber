@@ -16,11 +16,26 @@ PROXY_URL = os.getenv("HTTP_PROXY") or os.getenv("HTTPS_PROXY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 WECOM_WEBHOOK_URL = os.getenv("WECOM_WEBHOOK_URL")
 
-# 3. 频道列表 (建议把 JSON 字符串存入环境变量，或者依然写死在这里)
+# 3. 频道列表
 CHANNELS = {
-    "墨染": "UCJFC7-e0PJ0ucBKhXt2luzg",
-    "视野环球财经":"UCFQsi7WaF5X41tcuOryDk8w",
-    "分析师舒琴谈比特币":"UC45uU-M3pHzHncZ5PvG_7iw"
+    # 币圈频道 (Crypto)
+    "分析师舒琴谈比特币": {"id": "UC45uU-M3pHzHncZ5PvG_7iw", "tag": "crypto"},
+    "墨染": {"id": "UCJFC7-e0PJ0ucBKhXt2luzg", "tag": "crypto"},
+    "加密克里斯": {"id": "UCZhLquM_48SdeVztN0C-jvg", "tag": "crypto"},
+    "加密伊奇狗哥": {"id": "UCblYscdPMB3q8cTiW_td0eg", "tag": "crypto"},
+    "PowerUpGammas": {"id": "UCTb0BeBF6L7l2JsebTauH0Q", "tag": "crypto"},
+
+    # 美股/宏观频道 (Stock)
+    "视野环球财经": {"id": "UCFQsi7WaF5X41tcuOryDk8w", "tag": "stock"},
+    "LEI": {"id": "UCZyTcQHJGKkGeotf0vWA7Rg", "tag": "stock"},
+    "NaNa说美股": {"id": "UCFhJ8ZFg9W4kLwFTBBNIjOw", "tag": "stock"},
+    "老李玩钱": {"id": "UCo2gxyermsLBSCxFHvJs0Zg", "tag": "stock"},
+    "美投讲美股": {"id": "UCBUH38E0ngqvmTqdchWunwQ", "tag": "stock"},
+    "Alan Chen加州生活号": {"id": "UCfB2JYduVCYdHcoxlEWGw4w", "tag": "stock"},
+    "牛顿师兄": {"id": "UCveCI6CK6oPtuy24YH9ii9g", "tag": "stock"},
+    "阿泽讲技术(美股)": {"id": "UCNupOgpUJvBf3dC_Smz5Y2Q", "tag": "stock"},
+    "学用复利投资Value Insights": {"id": "UC7OantTI4IQumJvx6CW7LVQ", "tag": "stock"},
+    "Sam谈美股": {"id": "UC70ctfuYBZLMymSZpEMo0xQ", "tag": "stock"}
 }
 
 Hg_HOURS = 24
