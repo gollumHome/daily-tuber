@@ -74,7 +74,7 @@ class WeChatNotifier:
         # 注意：企微 Markdown 不支持 HTML 标签，只能用特定语法
         content = (
             f"**📺 {title}**\n"
-            f"> UP主: <font color=\"info\">{author}</font>\n\n"
+            f"> UP主: {author}\n"
             f"{summary}\n\n"
             f"[👉 点击观看视频]({link})"
         )
