@@ -1,0 +1,46 @@
+name: Crypto Market Digest (05:30 PM)
+
+on:
+  schedule:
+    # 北京时间 17:30 = UTC 09:30
+    - cron: '30 9 * * *'
+  workflow_dispatch: # 允许手动触发测试
+
+jobs:
+  run-digest:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    # 缓存 Whisper Medium 模型
+    - name: Cache Whisper Model
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/huggingface
+        key: ${{ runner.os }}-whisper-medium-v1
+        restore-keys: |
+          ${{ runner.os }}-whisper-medium-
+
+    - name: Install Python Dependencies
+      run: |
+        pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Create Cookies File
+      run: |
+        echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
+
+    - name: Run Crypto Digest Script
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
+        GITHUB_ACTIONS: "true"
+      # 传入 crypto 参数
+      run: python main.py crypto
