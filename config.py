@@ -31,10 +31,8 @@ CHANNELS = {
     "NaNa说美股": {"id": "UCFhJ8ZFg9W4kLwFTBBNIjOw", "tag": "stock"},
     "老李玩钱": {"id": "UCo2gxyermsLBSCxFHvJs0Zg", "tag": "stock"},
     "美投讲美股": {"id": "UCBUH38E0ngqvmTqdchWunwQ", "tag": "stock"},
-    "Alan Chen加州生活号": {"id": "UCfB2JYduVCYdHcoxlEWGw4w", "tag": "stock"},
     "牛顿师兄": {"id": "UCveCI6CK6oPtuy24YH9ii9g", "tag": "stock"},
     "阿泽讲技术(美股)": {"id": "UCNupOgpUJvBf3dC_Smz5Y2Q", "tag": "stock"},
-    "学用复利投资Value Insights": {"id": "UC7OantTI4IQumJvx6CW7LVQ", "tag": "stock"},
     "Sam谈美股": {"id": "UC70ctfuYBZLMymSZpEMo0xQ", "tag": "stock"}
 }
 
