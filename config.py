@@ -23,17 +23,18 @@ CHANNELS = {
     "墨染": {"id": "UCJFC7-e0PJ0ucBKhXt2luzg", "tag": "crypto"},
     "加密克里斯": {"id": "UCZhLquM_48SdeVztN0C-jvg", "tag": "crypto"},
     "加密伊奇狗哥": {"id": "UCblYscdPMB3q8cTiW_td0eg", "tag": "crypto"},
-    "PowerUpGammas": {"id": "UCTb0BeBF6L7l2JsebTauH0Q", "tag": "crypto"},
+   
 
     # 美股/宏观频道 (Stock)
+    "PowerUpGammas": {"id": "UCTb0BeBF6L7l2JsebTauH0Q", "tag": "stock"},
     "视野环球财经": {"id": "UCFQsi7WaF5X41tcuOryDk8w", "tag": "stock"},
     "LEI": {"id": "UCZyTcQHJGKkGeotf0vWA7Rg", "tag": "stock"},
     "NaNa说美股": {"id": "UCFhJ8ZFg9W4kLwFTBBNIjOw", "tag": "stock"},
     "老李玩钱": {"id": "UCo2gxyermsLBSCxFHvJs0Zg", "tag": "stock"},
-    "美投讲美股": {"id": "UCBUH38E0ngqvmTqdchWunwQ", "tag": "stock"},
     "牛顿师兄": {"id": "UCveCI6CK6oPtuy24YH9ii9g", "tag": "stock"},
     "阿泽讲技术(美股)": {"id": "UCNupOgpUJvBf3dC_Smz5Y2Q", "tag": "stock"},
-    "Sam谈美股": {"id": "UC70ctfuYBZLMymSZpEMo0xQ", "tag": "stock"}
+    "Money or Life 美股频道": {"id": "UC9cfcOuTT9rYkyUimMjLxuw", "tag": "stock"}
+ 
 }
 
 Hg_HOURS = 24
