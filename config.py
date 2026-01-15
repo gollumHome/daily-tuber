@@ -23,6 +23,8 @@ CHANNELS = {
     "墨染": {"id": "UCJFC7-e0PJ0ucBKhXt2luzg", "tag": "crypto"},
     "加密克里斯": {"id": "UCZhLquM_48SdeVztN0C-jvg", "tag": "crypto"},
     "加密伊奇狗哥": {"id": "UCblYscdPMB3q8cTiW_td0eg", "tag": "crypto"},
+    "mrblock 區塊先生": {"id": "UCN2hSM8fBcvZBa8OOKc24eg", "tag": "crypto"},
+    
    
 
     # 美股/宏观频道 (Stock)
