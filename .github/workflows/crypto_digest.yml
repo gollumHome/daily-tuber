@@ -45,6 +45,8 @@ jobs:
       uses: fscarmen/warp-on-actions@v1.3
       with:
         stack: ipv4
+        mode: proxy       # <--- 关键：只开启代理模式，不接管系统流量
+        port: 40000       # 明确指定端口 (默认也是40000)
     # ------------------------------------
 
     # 已移除：Create Cookies File 步骤
