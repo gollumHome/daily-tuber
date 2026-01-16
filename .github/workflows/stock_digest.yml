@@ -42,46 +42,55 @@ jobs:
 
 
     - name: Setup and Run V2Ray
-      # 1. 关键步骤：先将 Secret 映射为环境变量
-      # 这样可以防止 Shell 直接解析 Secret 内容导致引号丢失
       env:
         V2RAY_JSON: ${{ secrets.V2RAY_CONFIG }}
       run: |
-        # 下载 V2Ray 核心
+        # 1. 下载 V2Ray
         echo "下载 V2Ray..."
         wget -q https://github.com/v2fly/v2ray-core/releases/latest/download/v2ray-linux-64.zip
         unzip -q v2ray-linux-64.zip -d v2ray-bin
         chmod +x v2ray-bin/v2ray
-        
-        # 2. 写入配置文件 (使用环境变量)
-        # 注意："$V2RAY_JSON" 必须加双引号，这样能保留 JSON 原文中的引号和换行
+
+        # 2. 写入配置
         echo "$V2RAY_JSON" > v2ray-bin/config.json
-        
-        # (可选) 调试：打印一下文件前5行，确认格式是否正确 (敏感信息会被 GitHub 自动打码)
-        echo "检查配置文件头部..."
-        head -n 5 v2ray-bin/config.json
-        
-        # 3. 后台启动 V2Ray
+
+        # 3. 启动 V2Ray (后台运行)
         echo "启动 V2Ray..."
         ./v2ray-bin/v2ray run -c v2ray-bin/config.json &
-        
-        # 4. 等待启动并测试
-        echo "等待代理就绪..."
+
+        # 4. 等待冷启动
+        echo "等待进程启动 (5s)..."
         sleep 5
-        
-        # 测试代理是否通了 (你的配置里 http 端口是 10809)
-        # 访问 google 检查返回状态
-        if curl -x "http://127.0.0.1:10809" -s -I https://www.google.com | grep "200 OK"; then
-           echo "✅ V2Ray 代理启动成功！"
-        else
-           echo "❌ V2Ray 代理启动失败，请检查配置或节点连通性"
-           # 打印一下 V2Ray 的运行日志以便排查
-           echo "=== V2Ray 运行日志 ==="
-           # 如果 v2ray 刚启动这就退出了，可能没日志，但试一下
-           cat v2ray-bin/access.log || true
+
+        # 5. 循环测试代理连通性 (最多重试 5 次)
+        echo "正在测试节点连通性..."
+        PROXY_READY="false"
+
+        for i in {1..5}; do
+          echo "--- 第 $i 次尝试 ---"
+          # -m 5: 单次请求超时时间 5秒
+          # 测试 Cloudflare 接口，只要返回 ip= 就说明通了
+          if curl -x "http://127.0.0.1:10809" -s -m 5 https://www.cloudflare.com/cdn-cgi/trace | grep "ip="; then
+             echo "✅ 第 $i 次尝试成功！V2Ray 节点已通！"
+             PROXY_READY="true"
+             break
+          else
+             echo "⚠️ 第 $i 次尝试失败，等待 3 秒后重试..."
+             sleep 3
+          fi
+        done
+
+        # 6. 最终判断
+        if [ "$PROXY_READY" = "false" ]; then
+           echo "❌ 严重错误: 尝试了 5 次，代理依然无法连通。"
+           echo "请检查你的节点是否可用，或者配置内容是否正确。"
+           # 尝试打印日志 (如果配置里开启了日志文件)
+           echo "=== V2Ray Error Log (如有) ==="
            cat v2ray-bin/error.log || true
            exit 1
         fi
+
+        echo "🎉 代理检测通过，准备运行脚本..."
     # -----------------------------------------------------
 
     - name: Run Stock Digest Script
