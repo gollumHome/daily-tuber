@@ -112,7 +112,8 @@ def get_video_content(video_id):
             os.remove(output_path)
 
         ydl_opts = {
-            'cookiefile': 'cookies.txt' if os.path.exists('cookies.txt') else None,
+            #'cookiefile': 'cookies.txt' if os.path.exists('cookies.txt') else None,
+            'cookiefile':None,
             'format': 'bestaudio/best',
             'outtmpl': os.path.join(config.TEMP_DIR, f"{video_id}.%(ext)s"),
             'postprocessors': [{
