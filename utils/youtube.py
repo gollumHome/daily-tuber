@@ -72,19 +72,35 @@ def get_latest_videos(target_tag):
 
 def get_video_content(video_id):
     """
-    保持原有逻辑：方案 A 官方字幕 -> 方案 B RapidAPI 中转音频
+    方案：通过 RapidAPI 中转获取音频直链，并强制走代理下载，确保 GHA 不被拦截。
     """
     import os
     import requests
     import config
+    import time
 
     try:
+        # 1. 准备工作
         output_path = os.path.join(config.TEMP_DIR, f"{video_id}.mp3")
-        if os.path.exists(output_path): os.remove(output_path)
+        if os.path.exists(output_path):
+            os.remove(output_path)
 
+        # 确保临时目录存在
+        if not os.path.exists(config.TEMP_DIR):
+            os.makedirs(config.TEMP_DIR)
+
+        # 获取 API Key
         api_key = os.environ.get("RAPIDAPI_KEY", "a143cc11d0mshb2a4d08b4de7745p13cf02jsnc55f99458f14")
 
-        # 精确适配截图中的 API 结构
+        # 2. 构造代理配置 (V2Ray 节点)
+        dl_proxies = None
+        if config.PROXY_URL:
+            dl_proxies = {
+                "http": config.PROXY_URL,
+                "https": config.PROXY_URL
+            }
+
+        # 3. 备用 API 节点配置
         api_configs = [
             {
                 "name": "MP36",
@@ -94,47 +110,79 @@ def get_video_content(video_id):
             },
             {
                 "name": "Audio-Video-Downloader",
-                # 根据截图：ID 嵌入 URL 路径
                 "url": f"https://youtube-mp3-audio-video-downloader.p.rapidapi.com/get_mp3_download_link/{video_id}",
                 "host": "youtube-mp3-audio-video-downloader.p.rapidapi.com",
                 "params": {"quality": "low", "wait_until_the_file_is_ready": "false"}
             }
         ]
 
-        download_success = False
+        final_file_path = None
+
+        # 4. 轮询 API 节点
         for api in api_configs:
-            print(f"    [*] 尝试中转节点: {api['name']}")
+            print(f"    [*] 正在尝试中转节点: {api['name']}")
             try:
                 headers = {
                     "x-rapidapi-key": api_key,
                     "x-rapidapi-host": api["host"]
                 }
-                response = requests.get(api["url"], headers=headers, params=api["params"], timeout=30)
+
+                # 获取中转直链 (这一步通常不需要代理，RapidAPI 响应很快)
+                response = requests.get(api["url"], headers=headers, params=api["params"],proxies=dl_proxies, timeout=30)
                 data = response.json()
 
-                # 提取直链：API 1 通常在 'link'，API 2 可能在 'link' 或 'result'
+                # 提取直链
                 dlink = data.get('link') or data.get('result') or data.get('download_url')
 
                 if dlink:
-                    print(f"      [+] 拿到直链，正在落盘...")
-                    audio_res = requests.get(dlink, stream=True, timeout=60)
-                    with open(output_path, 'wb') as f:
-                        for chunk in audio_res.iter_content(chunk_size=8192):
-                            f.write(chunk)
-                    download_success = True
-                    break  # 成功则跳出循环
+                    print(f"      [+] 拿到直链，准备下载音频流...")
+
+                    # 模拟浏览器请求头，防止存储端识别
+                    dl_headers = {
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                        "Accept": "audio/mpeg,audio/*;q=0.9",
+                        "Referer": "https://www.y2mate.com/"
+                    }
+
+                    # --- 核心：通过代理下载文件 ---
+                    audio_res = requests.get(
+                        dlink,
+                        headers=dl_headers,
+                        proxies=dl_proxies,  # 走 V2Ray 代理
+                        stream=True,
+                        timeout=180
+                    )
+
+                    if audio_res.status_code == 200:
+                        with open(output_path, 'wb') as f:
+                            for chunk in audio_res.iter_content(chunk_size=1024 * 1024):
+                                if chunk: f.write(chunk)
+
+                        # 校验文件有效性
+                        f_size = os.path.getsize(output_path)
+                        if f_size > 1024 * 100:  # 必须大于 100KB
+                            print(f"      [√] 音频落地成功: {f_size / 1024 / 1024:.2f} MB")
+                            final_file_path = output_path
+                            break  # 关键：下载成功，跳出 API 轮询
+                        else:
+                            print(f"      [!] 警告：下载文件过小 ({f_size} bytes)，疑似 403 页面，尝试下一节点")
+                            if os.path.exists(output_path): os.remove(output_path)
+                    else:
+                        print(f"      [X] 下载响应失败，状态码: {audio_res.status_code}")
                 else:
-                    print(f"      [-] 节点解析未返回有效链接")
+                    print(f"      [-] 节点解析未返回有效链接: {data.get('msg', 'no msg')}")
+
             except Exception as inner_e:
                 print(f"      [!] 节点尝试异常: {inner_e}")
                 continue
 
-        if download_success:
-            return {"type": "audio", "path": output_path}
+        # 5. 返回结果
+        if final_file_path:
+            return {"type": "audio", "path": final_file_path}
         else:
-            print(f"  [X] 所有 RapidAPI 中转节点均失败")
+            print(f"  [X] 错误：所有中转节点及代理下载均已失败")
             return None
 
     except Exception as e:
-        print(f"  [X] 音频下载流程严重异常: {e}")
+        print(f"  [X] get_video_content 严重异常: {e}")
         return None
