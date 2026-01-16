@@ -4,11 +4,10 @@ on:
   schedule:
     # 北京时间 17:30 = UTC 09:30
     - cron: '30 9 * * *'
-  workflow_dispatch: # 允许手动触发
+  workflow_dispatch:
 
 jobs:
   run-digest:
-    # 必须使用 ubuntu-22.04
     runs-on: ubuntu-22.04
 
     steps:
@@ -25,81 +24,55 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-    # 缓存 Whisper Medium 模型
+    # 调整为 base 模型缓存，匹配你的 Python 代码
     - name: Cache Whisper Model
       uses: actions/cache@v4
       with:
         path: ~/.cache/huggingface
-        key: ${{ runner.os }}-whisper-medium-v1
+        key: ${{ runner.os }}-whisper-base-v1
         restore-keys: |
-          ${{ runner.os }}-whisper-medium-
+          ${{ runner.os }}-whisper-base-
 
     - name: Install Python Dependencies
       run: |
         pip install --upgrade pip
-        pip install --upgrade "https://github.com/yt-dlp/yt-dlp/archive/master.zip"
+        # 不再需要专门安装 yt-dlp，减少安装耗时
         pip install -r requirements.txt
 
     - name: Setup and Run V2Ray
       env:
         V2RAY_JSON: ${{ secrets.V2RAY_CONFIG }}
       run: |
-        # 1. 下载 V2Ray
         echo "下载 V2Ray..."
         wget -q https://github.com/v2fly/v2ray-core/releases/latest/download/v2ray-linux-64.zip
         unzip -q v2ray-linux-64.zip -d v2ray-bin
         chmod +x v2ray-bin/v2ray
-
-        # 2. 写入配置
         echo "$V2RAY_JSON" > v2ray-bin/config.json
-
-        # 3. 启动 V2Ray (后台运行)
-        echo "启动 V2Ray..."
         ./v2ray-bin/v2ray run -c v2ray-bin/config.json &
-
-        # 4. 等待冷启动
-        echo "等待进程启动 (5s)..."
         sleep 5
-
-        # 5. 循环测试代理连通性 (最多重试 5 次)
-        echo "正在测试节点连通性..."
+        
+        # 连通性测试
         PROXY_READY="false"
-
         for i in {1..5}; do
-          echo "--- 第 $i 次尝试 ---"
-          # -m 5: 单次请求超时时间 5秒
-          # 测试 Cloudflare 接口，只要返回 ip= 就说明通了
-          if curl -x "http://127.0.0.1:10809" -s -m 5 https://www.cloudflare.com/cdn-cgi/trace | grep "ip="; then
-             echo "✅ 第 $i 次尝试成功！V2Ray 节点已通！"
+          if curl -x "http://127.0.0.1:10809" -s -m 5 https://www.google.com | grep -q "google"; then
+             echo "✅ V2Ray 节点已通！"
              PROXY_READY="true"
              break
-          else
-             echo "⚠️ 第 $i 次尝试失败，等待 3 秒后重试..."
-             sleep 3
           fi
+          sleep 3
         done
 
-        # 6. 最终判断
         if [ "$PROXY_READY" = "false" ]; then
-           echo "❌ 严重错误: 尝试了 5 次，代理依然无法连通。"
-           echo "请检查你的节点是否可用，或者配置内容是否正确。"
+           echo "❌ 代理无法连通，脚本可能在获取 RSS 时失败。"
+           exit 1
         fi
-
-        echo "🎉 代理检测通过，准备运行脚本..."
-    # -----------------------------------------------------
-
-
-    - name: Create Cookies File
-      run: |
-        # 从 Secret 读取 Cookie 并写入文件
-        echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
 
     - name: Run Crypto Digest Script
       env:
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
+        # 记得在 GitHub Secrets 中添加这个 Key
+        RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
         GITHUB_ACTIONS: "true"
-        # 将本地 WARP 代理地址传给 Python 脚本
         PROXY_URL: "http://127.0.0.1:10809"
-      # 传入 crypto 参数
       run: python main.py crypto

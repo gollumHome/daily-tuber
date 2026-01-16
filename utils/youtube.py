@@ -1,9 +1,12 @@
 import feedparser
 import os
 from datetime import datetime, timedelta, timezone
+
+import requests
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 import yt_dlp
 import config
+from utils.ai import transcribe_audio
 
 # 如果配置了代理，设置全局环境变量，这样 feedparser/requests 会自动跟随
 if config.PROXY_URL:
@@ -66,77 +69,72 @@ def get_latest_videos(target_tag):
     print(f"[*] 检查完毕，[{target_tag.upper()}] 共有 {len(latest_videos)} 个新视频待处理。")
     return latest_videos
 
+
 def get_video_content(video_id):
-    """核心逻辑: 尝试获取字幕，失败则下载音频"""
+    """
+    保持原有逻辑：方案 A 官方字幕 -> 方案 B RapidAPI 中转音频
+    """
+    import os
+    import requests
+    import config
 
-    # 构造代理字典
-    tx_proxies = None
-    if config.PROXY_URL:
-        tx_proxies = {"https": config.PROXY_URL, "http": config.PROXY_URL}
-
-    # --- 方案 A: 获取字幕 (升级版 API) ---
-    print(f"  [*] 尝试获取字幕: {video_id}")
     try:
-        # 1. 获取该视频所有可用的字幕列表
-        # list_transcripts 能获取到 "自动生成" 和 "手动上传" 的所有字幕
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id, proxies=tx_proxies)
-
-        # 2. 智能筛选语言
-        # 优先找中文(简/繁)，如果没有，找英文
-        # find_transcript 会自动在列表中寻找匹配的语言
-        try:
-            transcript = transcript_list.find_transcript(['zh-Hans', 'zh-CN', 'zh-Hant', 'zh-TW', 'en', 'en-US'])
-        except NoTranscriptFound:
-            # 如果没找到指定语言，尝试翻译成中文（这是 list_transcripts 的强大功能）
-            # 或者直接取第一个可用的（通常是原声）
-            print("    - 未找到指定语言字幕，尝试获取原声...")
-            transcript = list(transcript_list)[0]
-
-        # 3. 下载并拼接
-        result = transcript.fetch()
-        full_text = " ".join([t['text'] for t in result])
-
-        return {"type": "text", "content": full_text}
-
-    except (TranscriptsDisabled, NoTranscriptFound):
-        print("  [!] 该视频未开启字幕功能。")
-    except Exception as e:
-        print(f"  [!] 字幕获取异常 ({e})，准备切换到音频...")
-
-    # --- 方案 B: 下载音频 (保持不变) ---
-    try:
-        print(f"  [*] 开始下载音频: {video_id}")
         output_path = os.path.join(config.TEMP_DIR, f"{video_id}.mp3")
+        if os.path.exists(output_path): os.remove(output_path)
 
-        if os.path.exists(output_path):
-            os.remove(output_path)
+        api_key = os.environ.get("RAPIDAPI_KEY", "a143cc11d0mshb2a4d08b4de7745p13cf02jsnc55f99458f14")
 
-        ydl_opts = {
-            'cookiefile': 'cookies.txt',
-            'format': 'bestaudio/best',
-            'outtmpl': os.path.join(config.TEMP_DIR, f"{video_id}.%(ext)s"),
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '128',
-            }],
-            'cachedir': False,
-            'quiet': True,
-            'no_warnings': True,
-            'force_ipv4': True,
-            # 2. 增加随机等待时间，进一步模拟人类
-            'sleep_interval_requests': 2,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        # 精确适配截图中的 API 结构
+        api_configs = [
+            {
+                "name": "MP36",
+                "url": "https://youtube-mp36.p.rapidapi.com/dl",
+                "host": "youtube-mp36.p.rapidapi.com",
+                "params": {"id": video_id}
+            },
+            {
+                "name": "Audio-Video-Downloader",
+                # 根据截图：ID 嵌入 URL 路径
+                "url": f"https://youtube-mp3-audio-video-downloader.p.rapidapi.com/get_mp3_download_link/{video_id}",
+                "host": "youtube-mp3-audio-video-downloader.p.rapidapi.com",
+                "params": {"quality": "low", "wait_until_the_file_is_ready": "false"}
             }
+        ]
 
-        if config.PROXY_URL:
-            ydl_opts['proxy'] = config.PROXY_URL
+        download_success = False
+        for api in api_configs:
+            print(f"    [*] 尝试中转节点: {api['name']}")
+            try:
+                headers = {
+                    "x-rapidapi-key": api_key,
+                    "x-rapidapi-host": api["host"]
+                }
+                response = requests.get(api["url"], headers=headers, params=api["params"], timeout=30)
+                data = response.json()
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
+                # 提取直链：API 1 通常在 'link'，API 2 可能在 'link' 或 'result'
+                dlink = data.get('link') or data.get('result') or data.get('download_url')
 
-        return {"type": "audio", "path": output_path}
+                if dlink:
+                    print(f"      [+] 拿到直链，正在落盘...")
+                    audio_res = requests.get(dlink, stream=True, timeout=60)
+                    with open(output_path, 'wb') as f:
+                        for chunk in audio_res.iter_content(chunk_size=8192):
+                            f.write(chunk)
+                    download_success = True
+                    break  # 成功则跳出循环
+                else:
+                    print(f"      [-] 节点解析未返回有效链接")
+            except Exception as inner_e:
+                print(f"      [!] 节点尝试异常: {inner_e}")
+                continue
+
+        if download_success:
+            return {"type": "audio", "path": output_path}
+        else:
+            print(f"  [X] 所有 RapidAPI 中转节点均失败")
+            return None
 
     except Exception as e:
-        print(f"  [X] 音频下载也失败了: {e}")
+        print(f"  [X] 音频下载流程严重异常: {e}")
         return None
