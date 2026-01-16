@@ -90,6 +90,11 @@ jobs:
         echo "🎉 代理检测通过，准备运行脚本..."
     # -----------------------------------------------------
 
+    - name: Create Cookies File
+      run: |
+        # 从 Secret 读取 Cookie 并写入文件
+        echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
+
     - name: Run Stock Digest Script
       env:
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
