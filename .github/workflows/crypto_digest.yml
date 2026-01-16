@@ -40,6 +40,11 @@ jobs:
         pip install --upgrade "https://github.com/yt-dlp/yt-dlp/archive/master.zip"
         pip install -r requirements.txt
 
+    - name: Create Cookies File
+      run: |
+        # 将 Secret 里的内容写入文件
+        echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
+
     # --- 核心魔法：手动安装 WARP 并开启 SOCKS5 代理模式 ---
     - name: Install and Configure Cloudflare WARP
       run: |

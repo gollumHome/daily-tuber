@@ -112,8 +112,7 @@ def get_video_content(video_id):
             os.remove(output_path)
 
         ydl_opts = {
-            #'cookiefile': 'cookies.txt' if os.path.exists('cookies.txt') else None,
-            'cookiefile':None,
+            'cookiefile': 'cookies.txt' if os.path.exists('cookies.txt') else None,
             'format': 'bestaudio/best',
             'outtmpl': os.path.join(config.TEMP_DIR, f"{video_id}.%(ext)s"),
             'postprocessors': [{
@@ -125,11 +124,11 @@ def get_video_content(video_id):
             'no_warnings': True,
             # 2. 增加随机等待时间，进一步模拟人类
             'sleep_interval_requests': 10,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['tv']
-                }
-            },
+            # 'extractor_args': {
+            #     'youtube': {
+            #         'player_client': ['tv']
+            #     }
+            # },
             # 'http_headers': {
             #     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             #     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
