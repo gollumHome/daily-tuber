@@ -4,10 +4,11 @@ on:
   schedule:
     # 北京时间 17:30 = UTC 09:30
     - cron: '30 9 * * *'
-  workflow_dispatch: # 允许手动触发测试
+  workflow_dispatch: # 允许手动触发
 
 jobs:
   run-digest:
+    # 必须使用 ubuntu-22.04
     runs-on: ubuntu-22.04
 
     steps:
@@ -36,27 +37,44 @@ jobs:
     - name: Install Python Dependencies
       run: |
         pip install --upgrade pip
-        # 强制更新 yt-dlp 到最新版
+        # 关键：必须强制安装最新版 yt-dlp
         pip install --upgrade yt-dlp
         pip install -r requirements.txt
 
-    # --- 新增：启动 Cloudflare WARP 代理 ---
-    - name: Set up WARP
-      uses: fscarmen/warp-on-actions@v1.3
-      with:
-        stack: ipv4
-        mode: proxy       # <--- 关键：只开启代理模式，不接管系统流量
-        port: 40000       # 明确指定端口 (默认也是40000)
-    # ------------------------------------
+    # --- 核心魔法：手动安装 WARP 并开启 SOCKS5 代理模式 ---
+    - name: Install and Configure Cloudflare WARP
+      run: |
+        # 1. 添加 Cloudflare 官方源 GPG Key
+        curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+        
+        # 2. 添加源
+        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+        
+        # 3. 安装 WARP
+        sudo apt-get update
+        sudo apt-get install -y cloudflare-warp
 
-    # 已移除：Create Cookies File 步骤
+        # 4. 配置 WARP (Proxy 模式)
+        sudo warp-cli --accept-tos registration new
+        sudo warp-cli --accept-tos mode proxy
+        sudo warp-cli --accept-tos proxy port 40000
+        sudo warp-cli --accept-tos connect
+        
+        # 5. 等待连接生效
+        sleep 5
+        if curl -x "socks5://127.0.0.1:40000" -s -I https://www.google.com | grep "200 OK"; then
+          echo "✅ WARP 代理启动成功！"
+        else
+          echo "⚠️ WARP 代理响应异常，但尝试继续运行脚本..."
+        fi
+    # -----------------------------------------------------
 
     - name: Run Crypto Digest Script
       env:
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
         GITHUB_ACTIONS: "true"
-        # 传入 WARP 的 SOCKS5 代理地址
+        # 将本地 WARP 代理地址传给 Python 脚本
         PROXY_URL: "socks5://127.0.0.1:40000"
       # 传入 crypto 参数
       run: python main.py crypto
