@@ -123,6 +123,7 @@ def get_video_content(video_id):
             'cachedir': False,
             'quiet': True,
             'no_warnings': True,
+            'force_ipv4': True,
             # 2. 增加随机等待时间，进一步模拟人类
             'sleep_interval_requests': 2,
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
