@@ -84,9 +84,6 @@ jobs:
         if [ "$PROXY_READY" = "false" ]; then
            echo "❌ 严重错误: 尝试了 5 次，代理依然无法连通。"
            echo "请检查你的节点是否可用，或者配置内容是否正确。"
-           # 尝试打印日志 (如果配置里开启了日志文件)
-           echo "=== V2Ray Error Log (如有) ==="
-           cat v2ray-bin/error.log || true
            exit 1
         fi
 
@@ -99,6 +96,6 @@ jobs:
         WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
         GITHUB_ACTIONS: "true"
         # 将本地 WARP 代理地址传给 Python 脚本
-        PROXY_URL: "socks5://127.0.0.1:10808"
+        PROXY_URL: "http://127.0.0.1:10809"
       # 传入 stock 参数
       run: python main.py stock
