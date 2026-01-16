@@ -40,54 +40,36 @@ jobs:
         pip install --upgrade "https://github.com/yt-dlp/yt-dlp/archive/master.zip"
         pip install -r requirements.txt
 
-    - name: Create Cookies File
-      run: |
-        # 将 Secret 里的内容写入文件
-        echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
+
     # --- 核心魔法：手动安装 WARP 并开启 SOCKS5 代理模式 ---
-    - name: Install and Configure Cloudflare WARP
+    - name: Setup and Run V2Ray
       run: |
-        # 1. 添加 Cloudflare 官方源
-        curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
-        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+        # 1. 下载 V2Ray 核心 (Linux 64位)
+        echo "下载 V2Ray..."
+        wget -q https://github.com/v2fly/v2ray-core/releases/latest/download/v2ray-linux-64.zip
+        unzip -q v2ray-linux-64.zip -d v2ray-bin
+        chmod +x v2ray-bin/v2ray
 
-        # 2. 安装 WARP
-        sudo apt-get update
-        sudo apt-get install -y cloudflare-warp
+        # 2. 写入配置文件 (从 Secret 读取)
+        # 将 secret 的内容写入 v2ray-bin 目录下的 config.json
+        echo "${{ secrets.V2RAY_CONFIG }}" > v2ray-bin/config.json
 
-        # 3. 配置 WARP (Proxy 模式)
-        echo "Configuring WARP..."
-        sudo warp-cli --accept-tos registration new
-        sudo warp-cli --accept-tos mode proxy
-        sudo warp-cli --accept-tos proxy port 40000
-        sudo warp-cli --accept-tos connect
+        # 3. 后台启动 V2Ray
+        echo "启动 V2Ray..."
+        # 运行在后台
+        ./v2ray-bin/v2ray run -c v2ray-bin/config.json &
 
-        # 4. 循环检查连接 (最多等待 30 秒)
-        echo "Waiting for connection..."
-        CONNECTED=false
+        # 4. 等待启动并测试
+        echo "等待代理就绪..."
+        sleep 5
 
-        for i in {1..10}; do
-          # 检查 WARP 状态用于调试
-          STATUS=$(sudo warp-cli --accept-tos status)
-          echo "Attempt $i: $STATUS"
-
-          # 测试代理连接
-          if curl -x "socks5://127.0.0.1:40000" -s --connect-timeout 3 https://www.cloudflare.com/cdn-cgi/trace | grep "ip="; then
-            echo "✅ WARP 代理连接成功！"
-            CONNECTED=true
-            break
-          fi
-
-          sleep 3
-        done
-
-        # 5. 严格判断：如果循环结束后仍未连接，直接报错退出
-        if [ "$CONNECTED" = "false" ]; then
-          echo "❌ 严重错误: WARP 代理无法建立连接，终止任务。"
-          # 打印一下最终状态以便排查
-          sudo warp-cli --accept-tos status
-          # exit 1 会通知 GitHub Actions 这一步失败，后续步骤（Run Python）将不会执行
-          exit 1
+        # 测试代理是否通了 (你的配置里 http 端口是 10809)
+        # 访问 google 检查返回状态
+        if curl -x "http://127.0.0.1:10809" -s -I https://www.google.com | grep "200 OK"; then
+           echo "✅ V2Ray 代理启动成功！"
+        else
+           echo "❌ V2Ray 代理启动失败，请检查配置或节点连通性"
+           exit 1
         fi
     # -----------------------------------------------------
 
@@ -97,6 +79,6 @@ jobs:
         WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
         GITHUB_ACTIONS: "true"
         # 将本地 WARP 代理地址传给 Python 脚本
-        PROXY_URL: "socks5://127.0.0.1:40000"
+        PROXY_URL: "socks5://127.0.0.1:10808"
       # 传入 stock 参数
       run: python main.py stock
