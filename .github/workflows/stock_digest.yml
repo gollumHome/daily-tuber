@@ -44,48 +44,48 @@ jobs:
     # --- 核心魔法：手动安装 WARP 并开启 SOCKS5 代理模式 ---
     - name: Install and Configure Cloudflare WARP
       run: |
-        # 1. 添加 Cloudflare 官方源 GPG Key
+        # 1. 添加 Cloudflare 官方源
         curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
-        
-        # 2. 添加源
         echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
-        
-        # 3. 安装 WARP
+
+        # 2. 安装 WARP
         sudo apt-get update
         sudo apt-get install -y cloudflare-warp
-        
-        # 4. 配置 WARP (Proxy 模式)
-        echo "Registering..."
+
+        # 3. 配置 WARP (Proxy 模式)
+        echo "Configuring WARP..."
         sudo warp-cli --accept-tos registration new
-        
-        echo "Setting mode to proxy..."
         sudo warp-cli --accept-tos mode proxy
-        
-        echo "Setting port to 40000..."
         sudo warp-cli --accept-tos proxy port 40000
-        
-        echo "Connecting..."
         sudo warp-cli --accept-tos connect
-        
-        # 5. 智能等待连接 (最多等待 30 秒)
-        echo "Waiting for connection to be established..."
+
+        # 4. 循环检查连接 (最多等待 30 秒)
+        echo "Waiting for connection..."
+        CONNECTED=false
+
         for i in {1..10}; do
-          # 检查 WARP 状态
+          # 检查 WARP 状态用于调试
           STATUS=$(sudo warp-cli --accept-tos status)
-          echo "Attempt $i: WARP Status: $STATUS"
-        
-          # 尝试通过代理访问 Google，如果成功则跳出循环
+          echo "Attempt $i: $STATUS"
+
+          # 测试代理连接
           if curl -x "socks5://127.0.0.1:40000" -s --connect-timeout 3 -I https://www.google.com | grep "200 OK"; then
             echo "✅ WARP 代理连接成功！"
-            echo "SUCCESS=true" >> $GITHUB_ENV
+            CONNECTED=true
             break
           fi
-        
+
           sleep 3
         done
-        
-        # 6. 最终状态汇报 (即使 curl 失败也不阻断流程，yt-dlp 重试机制可能能过)
-        sudo warp-cli --accept-tos status
+
+        # 5. 严格判断：如果循环结束后仍未连接，直接报错退出
+        if [ "$CONNECTED" = "false" ]; then
+          echo "❌ 严重错误: WARP 代理无法建立连接，终止任务。"
+          # 打印一下最终状态以便排查
+          sudo warp-cli --accept-tos status
+          # exit 1 会通知 GitHub Actions 这一步失败，后续步骤（Run Python）将不会执行
+          exit 1
+        fi
     # -----------------------------------------------------
 
     - name: Run Stock Digest Script

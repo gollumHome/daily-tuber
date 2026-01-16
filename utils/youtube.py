@@ -127,7 +127,7 @@ def get_video_content(video_id):
             'sleep_interval_requests': 10,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'web'],  # 优先尝试 android
+                     'player_client': ['ios'],
                     'player_skip': ['webpage', 'configs', 'js'],
                     'include_live_dash': False,
                 }
