@@ -53,27 +53,39 @@ jobs:
         # 3. 安装 WARP
         sudo apt-get update
         sudo apt-get install -y cloudflare-warp
-
+        
         # 4. 配置 WARP (Proxy 模式)
-        # 注册客户端
+        echo "Registering..."
         sudo warp-cli --accept-tos registration new
-        # 设置为代理模式 (不接管系统流量，只开端口)
+        
+        echo "Setting mode to proxy..."
         sudo warp-cli --accept-tos mode proxy
-        # 设置端口为 40000
+        
+        echo "Setting port to 40000..."
         sudo warp-cli --accept-tos proxy port 40000
-        # 连接
+        
+        echo "Connecting..."
         sudo warp-cli --accept-tos connect
         
-        # 5. 等待连接生效并验证
-        echo "等待代理启动..."
-        sleep 5
+        # 5. 智能等待连接 (最多等待 30 秒)
+        echo "Waiting for connection to be established..."
+        for i in {1..10}; do
+          # 检查 WARP 状态
+          STATUS=$(sudo warp-cli --accept-tos status)
+          echo "Attempt $i: WARP Status: $STATUS"
         
-        # 简单验证代理是否通了 (访问 google)
-        if curl -x "socks5://127.0.0.1:40000" -s -I https://www.google.com | grep "200 OK"; then
-          echo "✅ WARP 代理启动成功！"
-        else
-          echo "⚠️ WARP 代理响应异常，但尝试继续运行脚本..."
-        fi
+          # 尝试通过代理访问 Google，如果成功则跳出循环
+          if curl -x "socks5://127.0.0.1:40000" -s --connect-timeout 3 -I https://www.google.com | grep "200 OK"; then
+            echo "✅ WARP 代理连接成功！"
+            echo "SUCCESS=true" >> $GITHUB_ENV
+            break
+          fi
+        
+          sleep 3
+        done
+        
+        # 6. 最终状态汇报 (即使 curl 失败也不阻断流程，yt-dlp 重试机制可能能过)
+        sudo warp-cli --accept-tos status
     # -----------------------------------------------------
 
     - name: Run Stock Digest Script
