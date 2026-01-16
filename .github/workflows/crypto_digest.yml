@@ -45,3 +45,16 @@ jobs:
       uses: fscarmen/warp-on-actions@v1.3
       with:
         stack: ipv4
+    # ------------------------------------
+
+    # 已移除：Create Cookies File 步骤
+
+    - name: Run Crypto Digest Script
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
+        GITHUB_ACTIONS: "true"
+        # 传入 WARP 的 SOCKS5 代理地址
+        PROXY_URL: "socks5://127.0.0.1:40000"
+      # 传入 crypto 参数
+      run: python main.py crypto
