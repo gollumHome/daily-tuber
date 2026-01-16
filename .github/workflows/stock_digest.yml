@@ -24,12 +24,11 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y ffmpeg
 
-    # 缓存 Whisper Medium 模型 (约 1.5GB)
+    # 缓存 Whisper Medium 模型
     - name: Cache Whisper Model
       uses: actions/cache@v4
       with:
         path: ~/.cache/huggingface
-        # 使用 medium 作为 key，确保不与旧的 small 模型混淆
         key: ${{ runner.os }}-whisper-medium-v1
         restore-keys: |
           ${{ runner.os }}-whisper-medium-
@@ -37,16 +36,12 @@ jobs:
     - name: Install Python Dependencies
       run: |
         pip install --upgrade pip
+        # 强制更新 yt-dlp 到最新版，这非常重要
+        pip install --upgrade yt-dlp
         pip install -r requirements.txt
 
-    - name: Create Cookies File
-      run: |
-        echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
-
-    - name: Run Stock Digest Script
-      env:
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
-        GITHUB_ACTIONS: "true"
-      # 传入 stock 参数
-      run: python main.py stock
+    # --- 新增：启动 Cloudflare WARP 代理 ---
+    - name: Set up WARP
+      uses: fscarmen/warp-on-actions@v1.3
+      with:
+        stack: ipv4

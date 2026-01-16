@@ -33,20 +33,15 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-whisper-medium-
 
-
     - name: Install Python Dependencies
       run: |
         pip install --upgrade pip
+        # 强制更新 yt-dlp 到最新版
+        pip install --upgrade yt-dlp
         pip install -r requirements.txt
 
-    - name: Create Cookies File
-      run: |
-        echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
-
-    - name: Run Crypto Digest Script
-      env:
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
-        GITHUB_ACTIONS: "true"
-      # 传入 crypto 参数
-      run: python main.py crypto
+    # --- 新增：启动 Cloudflare WARP 代理 ---
+    - name: Set up WARP
+      uses: fscarmen/warp-on-actions@v1.3
+      with:
+        stack: ipv4
