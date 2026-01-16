@@ -123,7 +123,19 @@ def get_video_content(video_id):
             'quiet': True,
             'no_warnings': True,
             # 2. 增加随机等待时间，进一步模拟人类
-            'sleep_interval_requests': 2
+            'sleep_interval_requests': 10,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'web'],  # 优先尝试 android
+                    'player_skip': ['webpage', 'configs', 'js'],
+                    'include_live_dash': False,
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-us,en;q=0.5',
+            }
             }
         if config.PROXY_URL:
             ydl_opts['proxy'] = config.PROXY_URL
