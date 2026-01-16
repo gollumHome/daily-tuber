@@ -69,7 +69,7 @@ jobs:
           echo "Attempt $i: $STATUS"
         
           # 测试代理连接
-          if curl -x "socks5://127.0.0.1:40000" -s --connect-timeout 3 -I https://www.google.com | grep "200 OK"; then
+          if curl -x "socks5://127.0.0.1:40000" -s --connect-timeout 3 https://www.cloudflare.com/cdn-cgi/trace | grep "ip="; then
             echo "✅ WARP 代理连接成功！"
             CONNECTED=true
             break
