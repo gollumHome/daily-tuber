@@ -89,168 +89,147 @@ def clean_str(s):
     return str(s).encode('ascii', 'ignore').decode('ascii').strip()
 
 
-def get_rapidapi_nodes(video_id):
+def get_rapidapi_audio_nodes(video_id):
     """
-    配置所有可用的 RapidAPI 节点。
-    只需在此处增加新节点，无需改动主逻辑。
+    方法一：定义目前最稳的两个 API 节点池
     """
-    # 确保 video_id 干净
     v_id = str(video_id).strip()
-    v_url = f"https://www.youtube.com/watch?v={v_id}"
+
     return [
         {
-            "name": "MP36",
+            "name": "YouTube-MP3-2025 (最新/最稳)",
+            "url": "https://youtube-mp3-2025.p.rapidapi.com/v1/social/youtube/audio",
+            "host": "youtube-mp3-2025.p.rapidapi.com",
+            "params": {"id": v_id, "quality": "128kbps", "ext": "mp3"},
+            "link_field": "linkDownload"
+        },
+        {
+            "name": "MP36 (标准备选)",
             "url": "https://youtube-mp36.p.rapidapi.com/dl",
             "host": "youtube-mp36.p.rapidapi.com",
             "params": {"id": v_id},
-            "link_field": "link"  # 该 API 返回结果中直链的键名
-        },
-        {
-            "name": "Audio-Video-Downloader",
-            "url": f"https://youtube-mp3-audio-video-downloader.p.rapidapi.com/get_mp3_download_link/{v_id}",
-            "host": "youtube-mp3-audio-video-downloader.p.rapidapi.com",
-            "params": {"quality": "low"},
-            "link_field": "result"
-        },
-        {
-            "name": "YT-Audio-Video-V2 (新)",
-            "url": "https://youtube-audio-and-video-downloader.p.rapidapi.com/youtube",
-            "host": "youtube-audio-and-video-downloader.p.rapidapi.com",
-            "params": {"url": v_url, "type": "audio"},  # 该节点支持直接选 audio
-            "link_field": "link"  # 通常该 API 返回的键名是 link
-        },
+            "link_field": "link"
+        }
     ]
 
-
-import os
-import requests
-import time
-import config
 
 
 def get_video_content(video_id):
     """
-    针对 GHA 404 错误优化的音频提取方法
+    逻辑不动，修复 SSL EOF 错误并增加诊断日志
     """
-    v_id = str(video_id).strip()
-    v_url = f"https://www.youtube.com/watch?v={v_id}"
-    output_path = os.path.join(config.TEMP_DIR, f"{v_id}.mp3")
-
+    output_path = os.path.join(config.TEMP_DIR, f"{video_id}.mp3")
     if os.path.exists(output_path): os.remove(output_path)
     if not os.path.exists(config.TEMP_DIR): os.makedirs(config.TEMP_DIR)
 
-    api_key = str(os.environ.get("RAPIDAPI_KEY", "a143cc11d0mshb2a4d08b4de7745p13cf02jsnc55f99458f14")).strip()
+    # 1. API Keys
+    raw_keys = "e02d23717cmsh282096189d88cc2p151239jsn426a0c74a141,a143cc11d0mshb2a4d08b4de7745p13cf02jsnc55f99458f14"
+    api_keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
+
+    if not api_keys:
+        print("  [X] 错误：未配置任何 RAPIDAPI_KEY")
+        return None
+
     proxy_str = str(config.PROXY_URL or "").strip()
     proxies = {"http": proxy_str, "https": proxy_str} if proxy_str else None
+    nodes = get_rapidapi_audio_nodes(video_id)
 
-    # 节点池
-    nodes = [
-        {
-            "name": "YT-Audio-Video-V2 (新订阅)",
-            "url": "https://youtube-audio-and-video-downloader.p.rapidapi.com/youtube",
-            "host": "youtube-audio-and-video-downloader.p.rapidapi.com",
-            "params": {"url": v_url, "type": "audio"},
-            "link_keys": ["link", "downloadUrl", "url"]
-        },
-        {
-            "name": "MP36",
-            "url": "https://youtube-mp36.p.rapidapi.com/dl",
-            "host": "youtube-mp36.p.rapidapi.com",
-            "params": {"id": v_id},
-            "link_keys": ["link"]
-        },
-        {
-            "name": "Metatube-MP3",
-            "url": "https://yt-download-metatube.p.rapidapi.com/mp3",
-            "host": "yt-download-metatube.p.rapidapi.com",
-            "params": {"id": v_id},
-            "link_keys": ["url", "link"]
-        }
-    ]
+    # --- 核心修复：引入 Session 提高 SSL 握手稳定性 ---
+    session = requests.Session()
+    session.proxies = proxies
 
-    for node in nodes:
-        print(f"    [*] 尝试节点: {node['name']}")
-        try:
-            headers = {
-                "x-rapidapi-key": api_key,
-                "x-rapidapi-host": node["host"].strip()
-            }
+    # --- 第一层：轮询 API Key ---
+    for api_key in api_keys:
+        print(f"  [*] 正在使用 API Key: {api_key[:8]}***")
 
-            dlink = None
-            # 1. 尝试获取直链 (增加轮询次数和时长)
-            for attempt in range(5):
-                try:
-                    # 获取 API 响应 (增加超时)
-                    res = requests.get(node["url"], headers=headers, params=node["params"], proxies=proxies, timeout=60)
-                    if res.status_code != 200:
-                        print(f"      [!] API 响应异常: {res.status_code}")
-                        break
-
-                    data = res.json()
-                    data_str = str(data).lower()
-
-                    if "process" in data_str or "wait" in data_str:
-                        print(f"      [.] 转换中 (第{attempt + 1}次)...")
-                        time.sleep(12)
-                        continue
-
-                    # 尝试从多个可能的键中寻找直链
-                    for k in node["link_keys"]:
-                        if data.get(k):
-                            dlink = data[k]
-                            break
-                    if dlink: break
-
-                    # 某些 API 返回的是列表
-                    if isinstance(data.get('data'), list) and len(data['data']) > 0:
-                        dlink = data['data'][0].get('url') or data['data'][0].get('link')
-                        if dlink: break
-
-                except Exception as node_e:
-                    print(f"      [!] 请求 API 异常: {node_e}")
-                    break
-
-            # 2. 如果拿到直链，进入下载阶段
-            if dlink:
-                print(f"      [+] 拿到直链，准备下载...")
-                dl_headers = {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                    "Referer": f"https://{node['host']}/"
+        # --- 第二层：轮询 节点池 ---
+        for node in nodes:
+            print(f"    [*] 尝试节点: {node['name']}")
+            try:
+                headers = {
+                    "x-rapidapi-key": api_key,
+                    "x-rapidapi-host": node["host"].strip(),
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                    "Accept": "application/json"
                 }
 
-                # 核心改进：针对 404 进行延迟重试下载
-                success = False
-                for dl_retry in range(3):
+                dlink = None
+                # --- 第三层：轮询 转换状态 ---
+                for attempt in range(5):
                     try:
-                        # 下载时务必和 API 请求保持一致的代理配置
-                        with requests.get(dlink, headers=dl_headers, proxies=proxies, stream=True, timeout=300) as r:
-                            if r.status_code == 200:
-                                with open(output_path, 'wb') as f:
-                                    for chunk in r.iter_content(chunk_size=1024 * 1024):
-                                        if chunk: f.write(chunk)
+                        response = session.get(
+                            node["url"],
+                            headers=headers,
+                            params=node["params"],
+                            timeout=45
+                        )
 
-                                if os.path.exists(output_path) and os.path.getsize(output_path) > 100 * 1024:
-                                    print(f"      [√] 下载成功: {os.path.getsize(output_path) / 1024 / 1024:.2f} MB")
-                                    success = True
-                                    break
-                            elif r.status_code == 404:
-                                print(f"      [!] 下载返回 404，文件可能还在同步，等待 15s 后重试 ({dl_retry + 1}/3)...")
-                                time.sleep(15)
-                            else:
-                                print(f"      [X] 下载失败，状态码: {r.status_code}")
-                                break  # 其他错误（如403）直接换节点
-                    except Exception as dl_e:
-                        print(f"      [!] 下载流异常: {dl_e}")
+                        if response.status_code == 429:
+                            print(f"      [!] 当前 Key 额度已耗尽 (429)")
+                            break
+
+                        if response.status_code != 200:
+                            print(f"      [!] API 响应异常: {response.status_code}")
+                            break
+
+                        data = response.json()
+                        dlink = data.get(node["link_field"]) or data.get("linkDownload") or data.get("link")
+
+                        if not dlink or "process" in str(data).lower():
+                            print(f"      [.] 视频转换中/未就绪 (Attempt {attempt + 1})...")
+                            time.sleep(15)
+                            continue
+
+                        if dlink: break
+
+                    except (requests.exceptions.SSLError, requests.exceptions.ConnectionError) as ssl_err:
+                        # 针对你遇到的 SSL EOF 错误进行捕获
+                        print(f"      [!] 网络握手异常 (SSL/EOF)，5秒后重试... ({attempt+1}/5)")
                         time.sleep(5)
+                        continue
+                    except Exception as e:
+                        print(f"      [!] 请求过程发生错误: {e}")
+                        break
 
-                if success:
-                    return {"type": "audio", "path": output_path}
-            else:
-                print(f"      [-] 节点解析未返回链接")
+                if dlink:
+                    print(f"      [+] 拿到直链，准备下载...")
+                    time.sleep(10)
 
-        except Exception as e:
-            print(f"      [!] 节点处理异常: {e}")
-            continue
+                    dl_headers = {
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                        "Referer": "https://rapidapi.com/"
+                    }
 
-    print(f"  [X] 所有 API 节点及重试均已失败")
+                    # 下载重试逻辑
+                    for dl_retry in range(5):
+                        try:
+                            # 下载也复用 session
+                            with session.get(dlink, headers=dl_headers, stream=True, timeout=180) as r:
+                                if r.status_code == 200:
+                                    with open(output_path, 'wb') as f:
+                                        for chunk in r.iter_content(chunk_size=1024 * 1024):
+                                            if chunk: f.write(chunk)
+
+                                    f_size = os.path.getsize(output_path)
+                                    if f_size > 102400:
+                                        print(f"      [√] 落地成功: {f_size / 1024 / 1024:.2f} MB")
+                                        return {"type": "audio", "path": output_path}
+                                    else:
+                                        print(f"      [!] 落地文件过小 ({f_size} bytes)，准备重试...")
+                                        time.sleep(15)
+                                elif r.status_code == 404:
+                                    print(f"      [!] 下载 404，等待 15s 重试 ({dl_retry + 1}/5)...")
+                                    time.sleep(15)
+                                else:
+                                    print(f"      [X] 下载响应失败，状态码: {r.status_code}")
+                                    break
+                        except Exception as dl_e:
+                            print(f"      [!] 下载流异常: {dl_e}")
+                            time.sleep(5)
+
+            except Exception as e:
+                print(f"      [!] 节点处理崩溃: {e}")
+                continue
+
+    print(f"  [X] 最终失败：所有 Key 及所有节点均无法获取音频。")
     return None
