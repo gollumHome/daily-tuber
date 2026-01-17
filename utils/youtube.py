@@ -122,23 +122,54 @@ def get_rapidapi_nodes(video_id):
     ]
 
 
+import os
+import requests
+import time
+import config
+
+
 def get_video_content(video_id):
     """
-    针对 GHA 优化的音频提取主方法 (包含新节点轮询)
+    针对 GHA 404 错误优化的音频提取方法
     """
-    output_path = os.path.join(config.TEMP_DIR, f"{video_id}.mp3")
+    v_id = str(video_id).strip()
+    v_url = f"https://www.youtube.com/watch?v={v_id}"
+    output_path = os.path.join(config.TEMP_DIR, f"{v_id}.mp3")
+
     if os.path.exists(output_path): os.remove(output_path)
     if not os.path.exists(config.TEMP_DIR): os.makedirs(config.TEMP_DIR)
 
-    # 严格清洗 Key 和 代理，防止 latin-1 报错
     api_key = str(os.environ.get("RAPIDAPI_KEY", "a143cc11d0mshb2a4d08b4de7745p13cf02jsnc55f99458f14")).strip()
     proxy_str = str(config.PROXY_URL or "").strip()
     proxies = {"http": proxy_str, "https": proxy_str} if proxy_str else None
 
-    nodes = get_rapidapi_nodes(video_id)
+    # 节点池
+    nodes = [
+        {
+            "name": "YT-Audio-Video-V2 (新订阅)",
+            "url": "https://youtube-audio-and-video-downloader.p.rapidapi.com/youtube",
+            "host": "youtube-audio-and-video-downloader.p.rapidapi.com",
+            "params": {"url": v_url, "type": "audio"},
+            "link_keys": ["link", "downloadUrl", "url"]
+        },
+        {
+            "name": "MP36",
+            "url": "https://youtube-mp36.p.rapidapi.com/dl",
+            "host": "youtube-mp36.p.rapidapi.com",
+            "params": {"id": v_id},
+            "link_keys": ["link"]
+        },
+        {
+            "name": "Metatube-MP3",
+            "url": "https://yt-download-metatube.p.rapidapi.com/mp3",
+            "host": "yt-download-metatube.p.rapidapi.com",
+            "params": {"id": v_id},
+            "link_keys": ["url", "link"]
+        }
+    ]
 
     for node in nodes:
-        print(f"    [*] 尝试音频节点: {node['name']}")
+        print(f"    [*] 尝试节点: {node['name']}")
         try:
             headers = {
                 "x-rapidapi-key": api_key,
@@ -146,56 +177,80 @@ def get_video_content(video_id):
             }
 
             dlink = None
-            # 轮询 3 次等待云端转换
-            for attempt in range(3):
-                response = requests.get(
-                    node["url"],
-                    headers=headers,
-                    params=node["params"],
-                    proxies=proxies,
-                    timeout=30
-                )
+            # 1. 尝试获取直链 (增加轮询次数和时长)
+            for attempt in range(5):
+                try:
+                    # 获取 API 响应 (增加超时)
+                    res = requests.get(node["url"], headers=headers, params=node["params"], proxies=proxies, timeout=60)
+                    if res.status_code != 200:
+                        print(f"      [!] API 响应异常: {res.status_code}")
+                        break
 
-                if response.status_code == 429:
-                    print(f"      [!] 节点额度耗尽(429)")
+                    data = res.json()
+                    data_str = str(data).lower()
+
+                    if "process" in data_str or "wait" in data_str:
+                        print(f"      [.] 转换中 (第{attempt + 1}次)...")
+                        time.sleep(12)
+                        continue
+
+                    # 尝试从多个可能的键中寻找直链
+                    for k in node["link_keys"]:
+                        if data.get(k):
+                            dlink = data[k]
+                            break
+                    if dlink: break
+
+                    # 某些 API 返回的是列表
+                    if isinstance(data.get('data'), list) and len(data['data']) > 0:
+                        dlink = data['data'][0].get('url') or data['data'][0].get('link')
+                        if dlink: break
+
+                except Exception as node_e:
+                    print(f"      [!] 请求 API 异常: {node_e}")
                     break
-                if response.status_code != 200:
-                    break
 
-                data = response.json()
-                data_str = str(data).lower()
-
-                # 如果还在处理中
-                if "process" in data_str or "wait" in data_str:
-                    print(f"      [.] 转换中，等待 10s...")
-                    time.sleep(10)
-                    continue
-
-                # 尝试多种可能的链接键名 (增强兼容性)
-                dlink = data.get(node["link_field"]) or data.get("link") or data.get("download_url") or data.get("url")
-                if dlink: break
-
+            # 2. 如果拿到直链，进入下载阶段
             if dlink:
-                print(f"      [+] 拿到直链，正在下载...")
+                print(f"      [+] 拿到直链，准备下载...")
                 dl_headers = {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-                    "Referer": "https://google.com/"
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Referer": f"https://{node['host']}/"
                 }
 
-                with requests.get(dlink, headers=dl_headers, proxies=proxies, stream=True, timeout=180) as r:
-                    if r.status_code == 200:
-                        with open(output_path, 'wb') as f:
-                            for chunk in r.iter_content(chunk_size=1024 * 1024):
-                                if chunk: f.write(chunk)
+                # 核心改进：针对 404 进行延迟重试下载
+                success = False
+                for dl_retry in range(3):
+                    try:
+                        # 下载时务必和 API 请求保持一致的代理配置
+                        with requests.get(dlink, headers=dl_headers, proxies=proxies, stream=True, timeout=300) as r:
+                            if r.status_code == 200:
+                                with open(output_path, 'wb') as f:
+                                    for chunk in r.iter_content(chunk_size=1024 * 1024):
+                                        if chunk: f.write(chunk)
 
-                        if os.path.exists(output_path) and os.path.getsize(output_path) > 102400:
-                            print(f"      [√] 成功落地: {os.path.getsize(output_path) / 1024 / 1024:.2f} MB")
-                            return {"type": "audio", "path": output_path}
-                    else:
-                        print(f"      [X] 下载流失败，状态码: {r.status_code}")
+                                if os.path.exists(output_path) and os.path.getsize(output_path) > 100 * 1024:
+                                    print(f"      [√] 下载成功: {os.path.getsize(output_path) / 1024 / 1024:.2f} MB")
+                                    success = True
+                                    break
+                            elif r.status_code == 404:
+                                print(f"      [!] 下载返回 404，文件可能还在同步，等待 15s 后重试 ({dl_retry + 1}/3)...")
+                                time.sleep(15)
+                            else:
+                                print(f"      [X] 下载失败，状态码: {r.status_code}")
+                                break  # 其他错误（如403）直接换节点
+                    except Exception as dl_e:
+                        print(f"      [!] 下载流异常: {dl_e}")
+                        time.sleep(5)
+
+                if success:
+                    return {"type": "audio", "path": output_path}
+            else:
+                print(f"      [-] 节点解析未返回链接")
+
         except Exception as e:
-            print(f"      [!] 节点异常: {str(e)[:100]}")
+            print(f"      [!] 节点处理异常: {e}")
             continue
 
-    print(f"  [X] 所有节点均失败。")
+    print(f"  [X] 所有 API 节点及重试均已失败")
     return None
