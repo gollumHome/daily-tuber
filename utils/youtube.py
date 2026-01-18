@@ -122,10 +122,14 @@ def get_video_content(video_id):
     if os.path.exists(output_path): os.remove(output_path)
     if not os.path.exists(config.TEMP_DIR): os.makedirs(config.TEMP_DIR)
 
-    # 1. API Keys
-    raw_keys = "e02d23717cmsh282096189d88cc2p151239jsn426a0c74a141,a143cc11d0mshb2a4d08b4de7745p13cf02jsnc55f99458f14"
+    raw_keys = os.environ.get("RAPIDAPI_KEYS", "")
+    # 将字符串转为列表
     api_keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
-
+    
+    if not api_keys:
+        print("CRITICAL ERROR: No RapidAPI keys found in environment variables!")
+        # 如果是在 GitHub Actions 运行，这会让任务报错停止，提醒你检查设置
+        exit(1)
     if not api_keys:
         print("  [X] 错误：未配置任何 RAPIDAPI_KEY")
         return None
