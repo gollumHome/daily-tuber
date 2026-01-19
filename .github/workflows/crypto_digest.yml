@@ -72,7 +72,7 @@ jobs:
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
         # 记得在 GitHub Secrets 中添加这个 Key
-        RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEYS }}
+        RAPIDAPI_KEYS: ${{ secrets.RAPIDAPI_KEYS }}
         GITHUB_ACTIONS: "true"
         PROXY_URL: "http://127.0.0.1:10809"
       run: python main.py crypto
