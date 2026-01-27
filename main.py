@@ -1,4 +1,5 @@
 import os
+import random
 import sys
 
 from utils import youtube, ai
@@ -12,7 +13,7 @@ def main():
     print("=== YouTube 每日抓取任务开始 ===")
 
     notifier = WeChatNotifier()
-    category = "crypto"
+    category = "stock"
     if len(sys.argv) > 1:
         category = sys.argv[1].lower()
 
@@ -63,8 +64,14 @@ def main():
         # ================= 限流逻辑 =================
         # 如果不是最后一个视频，就休息 20 秒
         if index < total_videos - 1:
-            wait_seconds = 90
-            print(f"  [⏳] 冷却中... 休息 {wait_seconds} 秒，避免触发 API 限制")
+            # 设置随机等待时间的范围（单位：秒）
+            min_seconds = 120  # 2分钟
+            max_seconds = 300  # 5分钟
+
+            # 在设定的范围内生成一个随机整数
+            wait_seconds = random.randint(min_seconds, max_seconds)
+
+            print(f"  [⏳] 冷却中... 随机休息 {wait_seconds} 秒（约 {wait_seconds // 60} 分钟），避免触发 API 限制")
             time.sleep(wait_seconds)
 
     print("\n=== 任务完成 ===")
