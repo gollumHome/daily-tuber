@@ -3,14 +3,15 @@ from dotenv import load_dotenv
 
 # 加载本地 .env 文件 (如果存在)
 # GitHub Actions 环境下没有这个文件，不会报错，只是什么都不做
-load_dotenv()
+load_dotenv(override=True)
 
 
-# ================= 配置区 =================
+# 1. 住宅代理 (专门给 IPRoyal 下载 YouTube 使用)
+RESIDENTIAL_PROXY = os.getenv("RESIDENTIAL_PROXY")
 
-# 1. 代理配置 (核心修改)
-# 本地在 .env 里填 HTTP_PROXY，云端不填即可自动识别
-PROXY_URL = os.getenv("HTTP_PROXY") or os.getenv("HTTPS_PROXY")
+# 2. 本地代理 (专门给 Gemini AI 使用)
+# 对应 .env 中的 LOCAL_PROXY
+LOCAL_PROXY = os.getenv("LOCAL_PROXY")
 
 # 2. API Key (从环境变量读取更安全，也适配 GitHub Secrets)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -24,10 +25,10 @@ CHANNELS = {
     "加密克里斯": {"id": "UCZhLquM_48SdeVztN0C-jvg", "tag": "crypto"},
     "加密伊奇狗哥": {"id": "UCblYscdPMB3q8cTiW_td0eg", "tag": "crypto"},
     "mrblock 區塊先生": {"id": "UCN2hSM8fBcvZBa8OOKc24eg", "tag": "crypto"},
-    
-   
 
-    # 美股/宏观频道 (Stock)
+
+
+    # # 美股/宏观频道 (Stock)
     "PowerUpGammas": {"id": "UCTb0BeBF6L7l2JsebTauH0Q", "tag": "stock"},
     "视野环球财经": {"id": "UCFQsi7WaF5X41tcuOryDk8w", "tag": "stock"},
     "LEI": {"id": "UCZyTcQHJGKkGeotf0vWA7Rg", "tag": "stock"},

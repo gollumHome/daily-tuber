@@ -9,14 +9,7 @@ import config
 import time
 import os
 
-if config.PROXY_URL:
-    print(f"  [DEBUG] 正在设置 Gemini 代理: {config.PROXY_URL}")
-    os.environ['http_proxy'] = config.PROXY_URL
-    os.environ['https_proxy'] = config.PROXY_URL
-    os.environ['HTTP_PROXY'] = config.PROXY_URL
-    os.environ['HTTPS_PROXY'] = config.PROXY_URL
-    os.environ["ALL_PROXY"] = config.PROXY_URL
-    os.environ['NO_PROXY'] = 'localhost,127.0.0.1'
+
 # 初始化 Gemini
 genai.configure(api_key=config.GEMINI_API_KEY)
 
@@ -26,6 +19,12 @@ def init_whisper_model():
     统一使用 CPU + int8 模式，兼顾本地稳定性和 GitHub Actions
     """
     print("[*] 正在加载 Whisper Medium 模型 (CPU 优化模式)...")
+    # 1. 屏蔽环境变量，防止它去抓取系统代理
+    if "http_proxy" in os.environ: del os.environ["http_proxy"]
+    if "https_proxy" in os.environ: del os.environ["https_proxy"]
+
+    # 2. 强制 HuggingFace 离线
+    os.environ["HF_HUB_OFFLINE"] = "1"
     # int8 是 CPU 运行的黄金配置，内存占用约 2.2GB，准确率极高
     return WhisperModel("medium", device="cpu", compute_type="int8")
 
@@ -136,6 +135,11 @@ def call_gemini_with_retry(model, text, task_type):
     """
     封装的通用调用函数，带重试逻辑
     """
+    # 在发起网络请求前，临时设置本地代理
+    if config.LOCAL_PROXY:
+        os.environ["http_proxy"] = config.LOCAL_PROXY
+        os.environ["https_proxy"] = config.LOCAL_PROXY
+
     if task_type == "simple":
         prompt = "你是一个专业的技术与内容分析师。请根据输入的内容，用中文输出一份简报（一句话总结、核心观点、详细细节）。内容如下：\n\n"
     else:
@@ -155,6 +159,10 @@ def call_gemini_with_retry(model, text, task_type):
             time.sleep(wait_time)
         except Exception as e:
             return f"调用出错: {str(e)}"
+        finally:
+            # 结束后清除环境变量，保持环境纯净
+            if "http_proxy" in os.environ: del os.environ["http_proxy"]
+            if "https_proxy" in os.environ: del os.environ["https_proxy"]
     return "多次尝试后 API 依然拒绝请求。"
 
 
